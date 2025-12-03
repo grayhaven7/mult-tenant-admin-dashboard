@@ -128,18 +128,34 @@ export async function POST(request: Request) {
       console.log('User record verified:', verifyUser)
 
       // Wait longer to ensure the record is fully committed and RLS policies are applied
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
       // Double-check with regular client that user can see their record (tests RLS)
-      // This is important to ensure the user can access the dashboard
+      // IMPORTANT: We need to create a fresh client that uses the cookies from the sign-in
+      // The server client should automatically pick up the session from cookies
       let canReadOwnRecord = false
       let retries = 0
-      const maxRetries = 3
+      const maxRetries = 5
       
       while (!canReadOwnRecord && retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, 1000))
         
-        const { data: regularClientCheck, error: regularError } = await supabase
+        // Create a fresh client to ensure we have the latest session
+        const freshClient = await createClient()
+        
+        // First verify the auth session
+        const { data: { user: authUser }, error: authError } = await freshClient.auth.getUser()
+        
+        if (authError || !authUser || authUser.id !== signInData.user.id) {
+          console.warn(`Auth session check failed (attempt ${retries + 1}/${maxRetries}):`, authError?.message || 'No user in session')
+          retries++
+          continue
+        }
+        
+        console.log(`Auth session valid (attempt ${retries + 1}/${maxRetries}), checking user record...`)
+        
+        // Now try to read the user record
+        const { data: regularClientCheck, error: regularError } = await freshClient
           .from('users')
           .select('id, role, tenant_id')
           .eq('id', signInData.user.id)
@@ -147,20 +163,59 @@ export async function POST(request: Request) {
 
         if (regularClientCheck) {
           canReadOwnRecord = true
-          console.log('User record visible with regular client (RLS working):', regularClientCheck)
+          console.log('✓ User record visible with regular client (RLS working):', regularClientCheck)
         } else {
           retries++
-          console.warn(`User record not visible with regular client (attempt ${retries}/${maxRetries}):`, regularError)
+          console.warn(`✗ User record not visible with regular client (attempt ${retries}/${maxRetries}):`, {
+            error: regularError?.message,
+            code: regularError?.code,
+            details: regularError?.details,
+            hint: regularError?.hint,
+            userId: signInData.user.id
+          })
+          
           if (retries >= maxRetries) {
-            console.error('User record still not visible after retries - RLS policy may be missing')
+            console.error('User record still not visible after retries - RLS policy may be missing or misconfigured')
+            
+            // Provide detailed diagnostics
             return NextResponse.json({
               error: 'User record created but not accessible',
-              details: 'The user record was created but cannot be read. Please run the SQL in supabase/fix-rls-policy.sql in your Supabase SQL Editor to add the required RLS policy.',
-              userRecordExists: true,
-              fixRequired: 'Run: CREATE POLICY "Users can view their own record" ON users FOR SELECT USING (id = auth.uid());'
+              details: 'The user record was created but cannot be read through RLS. This usually means the RLS policy is missing or not working correctly.',
+              diagnostics: {
+                userId: signInData.user.id,
+                userRecordExists: true,
+                authSessionValid: !!authUser,
+                rlsError: regularError?.message,
+                rlsCode: regularError?.code,
+                rlsHint: regularError?.hint
+              },
+              fixRequired: {
+                step1: 'Run this SQL in your Supabase SQL Editor:',
+                sql: `CREATE POLICY IF NOT EXISTS "Users can view their own record"
+  ON users FOR SELECT
+  USING (id = auth.uid());`,
+                step2: 'Verify the policy exists by running:',
+                verifySql: `SELECT policyname FROM pg_policies WHERE tablename = 'users' AND policyname = 'Users can view their own record';`,
+                step3: 'If the policy exists but still not working, check for conflicting policies:',
+                checkSql: `SELECT policyname, cmd, qual FROM pg_policies WHERE tablename = 'users' AND cmd = 'SELECT';`
+              }
             }, { status: 500 })
           }
         }
+      }
+
+      // If we can't verify with regular client after retries, still return success
+      // The dashboard will handle the RLS check and provide better error messages
+      // This allows the frontend to at least attempt to load the dashboard
+      if (!canReadOwnRecord) {
+        console.warn('⚠️ User record created but RLS verification failed - dashboard may redirect')
+        // Still return success, but include a warning
+        return NextResponse.json({ 
+          success: true, 
+          user: signInData.user,
+          userRecord: verifyUser,
+          warning: 'User record created but RLS policy verification failed. If you see "User record not found" on the dashboard, please verify the RLS policy exists.'
+        })
       }
 
       return NextResponse.json({ 
