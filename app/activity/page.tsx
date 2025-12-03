@@ -44,7 +44,7 @@ export default async function ActivityPage() {
   // Get users for filter
   let usersQuery = supabase
     .from('users')
-    .select('id, full_name, email')
+    .select('id, full_name, email, role, tenant_id, avatar_url, created_at')
     .order('full_name')
 
   if (currentUser.role !== 'admin') {

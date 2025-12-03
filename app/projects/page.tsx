@@ -43,7 +43,7 @@ export default async function ProjectsPage() {
   // Get users for assignment dropdown
   let usersQuery = supabase
     .from('users')
-    .select('id, full_name, avatar_url')
+    .select('id, full_name, avatar_url, email, role, tenant_id, created_at')
     .order('full_name')
 
   if (currentUser.role !== 'admin') {
