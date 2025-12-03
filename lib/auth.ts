@@ -18,10 +18,11 @@ const config = {
 
         try {
           // Find user by email
+          const email = credentials.email as string
           const result = await sql`
             SELECT id, email, password_hash, role, tenant_id, full_name, avatar_url
             FROM users
-            WHERE email = ${credentials.email}
+            WHERE email = ${email}
           `
 
           const user = result.rows[0]
