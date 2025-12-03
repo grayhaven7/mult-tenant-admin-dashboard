@@ -65,7 +65,7 @@ function DemoButton() {
   return (
     <Button size="lg" className="group" onClick={handleTryDemo} disabled={loading}>
       <Sparkles className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
-      {loading ? 'Starting Demo...' : 'Try Demo Free'}
+      {loading ? 'Starting Demo...' : 'Try Demo - No Account Needed'}
       <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
     </Button>
   )
@@ -110,7 +110,7 @@ export default function LandingPage() {
               }`}
             >
               Manage multiple tenants, users, and projects with ease. Beautiful UI, secure by default,
-              and ready for production.
+              and ready for production. <span className="text-primary font-medium">No signup required - try it free!</span>
             </p>
             <div
               className={`flex gap-4 justify-center transition-all duration-1000 delay-500 ${
@@ -189,6 +189,8 @@ export default function LandingPage() {
             <h2 className="text-4xl font-bold mb-4">Ready to get started?</h2>
             <p className="text-xl text-muted-foreground mb-8">
               Explore the demo and see how easy it is to manage your multi-tenant application.
+              <br />
+              <span className="text-sm text-muted-foreground/80">No signup, no credit card, just click and explore!</span>
             </p>
             <DemoButton />
           </div>

@@ -21,7 +21,8 @@ export async function POST(request: Request) {
 
     const supabase = await createClient()
     
-    // Try to sign in with demo account, or create one if it doesn't exist
+    // Demo account - automatically created if it doesn't exist
+    // Users don't need to sign up - this happens behind the scenes
     const demoEmail = 'demo@acme.com'
     const demoPassword = 'demo123456'
 

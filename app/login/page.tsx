@@ -164,7 +164,7 @@ export default function LoginPage() {
               disabled={loading}
             >
               <Sparkles className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
-              Try Demo
+              Try Demo - No Account Needed
             </Button>
 
             <div className="text-center text-sm">
