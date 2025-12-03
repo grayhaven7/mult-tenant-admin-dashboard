@@ -59,14 +59,21 @@ export default function LoginPage() {
 
       if (data.success) {
         toast.success('Welcome to the demo!')
+        // Small delay to ensure session is set
+        await new Promise(resolve => setTimeout(resolve, 500))
         router.push('/dashboard')
         router.refresh()
       } else {
-        toast.error(data.error || 'Failed to start demo')
+        console.error('Demo error:', data)
+        const errorMsg = data.details 
+          ? `${data.error}: ${data.details}` 
+          : data.error || 'Failed to start demo'
+        toast.error(errorMsg, { duration: 5000 })
         setLoading(false)
       }
     } catch (error) {
-      toast.error('Failed to start demo. Please try again.')
+      console.error('Demo fetch error:', error)
+      toast.error('Failed to start demo. Please check your connection and try again.', { duration: 5000 })
       setLoading(false)
     }
   }
