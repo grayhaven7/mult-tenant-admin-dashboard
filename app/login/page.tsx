@@ -129,9 +129,21 @@ export default function LoginPage() {
         const apiData = await response.json()
 
         if (apiData.success) {
-          toast.success('Welcome to the demo!')
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          window.location.href = '/dashboard'
+          // Demo user created, now sign in with it
+          const signInResult = await signIn('credentials', {
+            email: apiData.email || 'demo@acme.com',
+            password: apiData.password || 'demo123456',
+            redirect: false,
+          })
+
+          if (signInResult?.ok) {
+            toast.success('Welcome to the demo!')
+            await new Promise(resolve => setTimeout(resolve, 500))
+            window.location.href = '/dashboard'
+          } else {
+            toast.error('Demo user created but sign in failed. Please try signing in manually.')
+            setLoading(false)
+          }
         } else {
           console.error('Demo error:', apiData)
           const errorMsg = apiData.details 

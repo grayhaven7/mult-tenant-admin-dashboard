@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     // Create user
-    const userId = randomUUID()
+    const userId = uuidv4()
     await sql`
       INSERT INTO users (id, email, password_hash, full_name, role, tenant_id)
       VALUES (${userId}, ${email}, ${passwordHash}, ${fullName}, 'user', ${tenantId})
