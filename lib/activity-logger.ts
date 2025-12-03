@@ -1,4 +1,4 @@
-import { createClient } from './supabase/server'
+import { sql } from '@vercel/postgres'
 
 export async function logActivity(
   userId: string,
@@ -6,19 +6,12 @@ export async function logActivity(
   action: string,
   details: string | null = null
 ) {
-  const supabase = await createClient()
-  
-  const { error } = await supabase
-    .from('activity_logs')
-    .insert({
-      user_id: userId,
-      tenant_id: tenantId,
-      action,
-      details,
-    })
-
-  if (error) {
+  try {
+    await sql`
+      INSERT INTO activity_logs (user_id, tenant_id, action, details)
+      VALUES (${userId}, ${tenantId}, ${action}, ${details})
+    `
+  } catch (error) {
     console.error('Failed to log activity:', error)
   }
 }
-

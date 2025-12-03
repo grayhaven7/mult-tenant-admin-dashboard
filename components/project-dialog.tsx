@@ -7,10 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ProjectWithRelations, User } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { logActivity } from '@/lib/activity-logger'
 
 interface ProjectDialogProps {
   open: boolean
@@ -27,7 +25,6 @@ export function ProjectDialog({ open, onOpenChange, project, users, currentUser,
   const [assignedUserId, setAssignedUserId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     if (project) {
@@ -52,57 +49,48 @@ export function ProjectDialog({ open, onOpenChange, project, users, currentUser,
       tenant_id: currentUser.tenant_id,
     }
 
-    if (project) {
-      // Update
-      const { data, error } = await supabase
-        .from('projects')
-        .update(projectData)
-        .eq('id', project.id)
-        .select()
-        .single()
+    try {
+      if (project) {
+        // Update
+        const response = await fetch('/api/projects', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: project.id,
+            ...projectData,
+          }),
+        })
 
-      if (error) {
-        toast.error('Failed to update project')
-        setLoading(false)
-        return
+        if (!response.ok) {
+          toast.error('Failed to update project')
+          setLoading(false)
+          return
+        }
+
+        toast.success('Project updated successfully')
+      } else {
+        // Create
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(projectData),
+        })
+
+        if (!response.ok) {
+          toast.error('Failed to create project')
+          setLoading(false)
+          return
+        }
+
+        toast.success('Project created successfully')
       }
 
-      toast.success('Project updated successfully')
-      
-      // Log activity
-      await fetch('/api/activity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'edited project',
-          details: `Updated project: ${name}`,
-        }),
-      })
-    } else {
-      // Create
-      const { data, error } = await supabase
-        .from('projects')
-        .insert(projectData)
-        .select()
-        .single()
-
-      if (error) {
-        toast.error('Failed to create project')
-        setLoading(false)
-        return
-      }
-
-      toast.success('Project created successfully')
-      
-      // Log activity
-      await fetch('/api/activity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'created project',
-          details: `Created project: ${name}`,
-        }),
-      })
+      onSuccess()
+      onOpenChange(false)
+    } catch (error) {
+      toast.error('An error occurred')
+    } finally {
+      setLoading(false)
     }
 
     setLoading(false)

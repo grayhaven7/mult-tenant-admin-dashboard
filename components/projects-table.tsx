@@ -10,7 +10,6 @@ import { Plus, Search, Edit, Trash2 } from 'lucide-react'
 import { ProjectDialog } from './project-dialog'
 import { format } from 'date-fns'
 import { ProjectWithRelations, User } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -34,7 +33,6 @@ export function ProjectsTable({ initialProjects, users, currentUser }: ProjectsT
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -50,26 +48,17 @@ export function ProjectsTable({ initialProjects, users, currentUser }: ProjectsT
     const project = projects.find((p) => p.id === projectId)
     const projectName = project?.name || 'project'
 
-    const { error } = await supabase.from('projects').delete().eq('id', projectId)
+    const response = await fetch(`/api/projects?id=${projectId}`, {
+      method: 'DELETE',
+    })
 
-    if (error) {
+    if (!response.ok) {
       toast.error('Failed to delete project')
       return
     }
 
     setProjects(projects.filter((p) => p.id !== projectId))
     toast.success('Project deleted successfully')
-    
-    // Log activity
-    await fetch('/api/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'deleted project',
-        details: `Deleted project: ${projectName}`,
-      }),
-    })
-    
     router.refresh()
   }
 
@@ -87,22 +76,10 @@ export function ProjectsTable({ initialProjects, users, currentUser }: ProjectsT
     setIsDialogOpen(false)
     setEditingProject(null)
     // Refetch projects
-    let query = supabase
-      .from('projects')
-      .select(`
-        *,
-        assigned_user:users!projects_assigned_user_id_fkey(id, full_name, avatar_url)
-      `)
-      .order('created_at', { ascending: false })
-    
-    if (currentUser.role !== 'admin') {
-      query = query.eq('tenant_id', currentUser.tenant_id)
-    }
-    
-    const { data: freshProjects } = await query
-    
-    if (freshProjects) {
-      setProjects(freshProjects)
+    const response = await fetch('/api/projects')
+    if (response.ok) {
+      const data = await response.json()
+      setProjects(data.projects)
     }
     router.refresh()
   }

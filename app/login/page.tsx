@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles } from 'lucide-react'
@@ -34,20 +34,22 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const result = await signIn('credentials', {
         email,
         password,
+        redirect: false,
       })
 
-      if (error) {
-        toast.error(error.message)
+      if (result?.error) {
+        toast.error('Invalid email or password')
         setLoading(false)
         return
       }
 
-      if (data.user) {
+      if (result?.ok) {
+        toast.success('Welcome back!')
         router.push('/dashboard')
+        router.refresh()
       }
     } catch (error) {
       toast.error('Failed to connect to authentication service')
@@ -66,13 +68,13 @@ export default function LoginPage() {
     // Now automatically submit the form
     setLoading(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const result = await signIn('credentials', {
         email: 'demo@acme.com',
         password: 'demo123456',
+        redirect: false,
       })
 
-      if (error) {
+      if (result?.error) {
         // If sign in fails, try creating the account via API
         const response = await fetch('/api/demo', {
           method: 'POST',
@@ -99,15 +101,13 @@ export default function LoginPage() {
             errorData = { error: 'Failed to read server response', details: String(fetchError) }
           }
           
-          // Log detailed error for debugging
           console.error('Demo API error details:', {
             status: response.status,
             statusText: response.statusText,
             errorData: errorData,
-            rawText: errorText.substring(0, 500) // First 500 chars
+            rawText: errorText.substring(0, 500)
           })
           
-          // Provide more helpful error message with all available details
           let errorMsg = errorData.error || 'Server error'
           if (errorData.details) {
             errorMsg += `: ${errorData.details}`
@@ -116,13 +116,11 @@ export default function LoginPage() {
             errorMsg += ` (${errorData.errorName})`
           }
           
-          // Show full error in console for debugging
           console.error('Full error object:', errorData)
           if (errorData.stack) {
             console.error('Server error stack:', errorData.stack)
           }
           
-          // Show user-friendly message
           toast.error(errorMsg, { duration: 10000 })
           setLoading(false)
           return
@@ -132,9 +130,7 @@ export default function LoginPage() {
 
         if (apiData.success) {
           toast.success('Welcome to the demo!')
-          // Wait longer to ensure user record is committed and accessible
           await new Promise(resolve => setTimeout(resolve, 1000))
-          // Force a hard navigation to ensure fresh data
           window.location.href = '/dashboard'
         } else {
           console.error('Demo error:', apiData)
@@ -147,11 +143,9 @@ export default function LoginPage() {
         return
       }
 
-      if (data.user) {
+      if (result?.ok) {
         toast.success('Welcome to the demo!')
-        // Wait to ensure user record is accessible
         await new Promise(resolve => setTimeout(resolve, 1000))
-        // Force hard navigation
         window.location.href = '/dashboard'
       }
     } catch (error) {
@@ -192,6 +186,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
               <div className="space-y-2">
@@ -203,6 +198,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>

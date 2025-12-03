@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -27,33 +26,30 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+        }),
       })
 
-      if (error) {
-        toast.error(error.message)
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to create account')
         setLoading(false)
         return
       }
 
-      if (data.user) {
-        toast.success('Account created! Please check your email to verify your account.')
-        // In a real app, you'd create the user record in the users table here
-        // For now, we'll redirect to login
-        setTimeout(() => {
-          router.push('/login')
-        }, 2000)
-      }
+      toast.success('Account created successfully! Please sign in.')
+      router.push('/login')
     } catch (error) {
-      toast.error('Failed to connect to authentication service')
+      toast.error('Failed to create account')
       setLoading(false)
     }
   }
@@ -75,7 +71,7 @@ export default function SignupPage() {
         <Card className="border-border bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Sign Up</CardTitle>
-            <CardDescription>Enter your information to create an account</CardDescription>
+            <CardDescription>Create a new account to access the dashboard</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form onSubmit={handleSignup} className="space-y-4">
@@ -88,6 +84,7 @@ export default function SignupPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
+                  autoComplete="name"
                 />
               </div>
               <div className="space-y-2">
@@ -99,6 +96,7 @@ export default function SignupPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
               <div className="space-y-2">
@@ -110,6 +108,7 @@ export default function SignupPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="new-password"
                   minLength={6}
                 />
               </div>

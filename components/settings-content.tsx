@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { User, Users, Building2, Mail } from 'lucide-react'
 import { User as UserType, Tenant } from '@/types/database'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -25,18 +24,18 @@ export function SettingsContent({ currentUser, users, tenants }: SettingsContent
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { error } = await supabase
-      .from('users')
-      .update({ full_name: fullName })
-      .eq('id', currentUser.id)
+    const response = await fetch('/api/users/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: fullName }),
+    })
 
-    if (error) {
+    if (!response.ok) {
       toast.error('Failed to update profile')
       setLoading(false)
       return

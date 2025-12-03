@@ -153,7 +153,7 @@ export default function LandingPage() {
               {
                 icon: Shield,
                 title: 'Secure by Default',
-                description: 'Built on Supabase with enterprise-grade security and authentication.',
+                description: 'Built on Neon PostgreSQL with enterprise-grade security and authentication.',
               },
             ].map((feature, index) => (
               <div

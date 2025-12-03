@@ -9,6 +9,7 @@ export interface Tenant {
 export interface User {
   id: string
   email: string
+  password_hash?: string // Only present in database, not in API responses
   full_name: string | null
   role: UserRole
   tenant_id: string

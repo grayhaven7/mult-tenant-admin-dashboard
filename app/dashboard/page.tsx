@@ -1,87 +1,81 @@
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StatsCard } from '@/components/stats-card'
 import { Users, FolderKanban, Activity, TrendingUp } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ActivityChart } from '@/components/activity-chart'
+import { sql } from '@vercel/postgres'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await auth()
 
-  if (!user) {
+  if (!session?.user) {
     redirect('/login')
   }
 
-  // Get current user's role and tenant
-  let { data: currentUser, error: userError } = await supabase
-    .from('users')
-    .select('role, tenant_id')
-    .eq('id', user.id)
-    .single()
+  const userId = session.user.id
+  const userRole = session.user.role
+  const tenantId = session.user.tenantId
 
-  if (!currentUser) {
-    // If user record doesn't exist, redirect to login
-    // The demo route should have created it, but if it didn't, user needs to try again
-    console.error('User record not found in dashboard:', userError)
-    console.error('User ID:', user.id, 'Email:', user.email)
-    console.error('RLS Error details:', {
-      message: userError?.message,
-      code: userError?.code,
-      hint: userError?.hint,
-      details: userError?.details
-    })
-    
-    // Check if this is an RLS error
-    if (userError?.code === 'PGRST301' || userError?.message?.includes('row-level security') || userError?.hint?.includes('policy')) {
-      console.error('⚠️ RLS POLICY ERROR: The "Users can view their own record" policy is missing or not working!')
-      console.error('Fix: Run supabase/FINAL_FIX.sql in your Supabase SQL Editor')
-      console.error('Also verify the is_admin() function exists and has proper permissions')
-    }
-    
-    // Also check if it's a function permission error
-    if (userError?.message?.includes('permission denied') || userError?.message?.includes('function')) {
-      console.error('⚠️ FUNCTION PERMISSION ERROR: The is_admin() function may not have proper permissions!')
-      console.error('Fix: Run GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;')
-    }
-    
-    // Don't try to create it here - let the demo route handle it
-    // This prevents server errors if service role key isn't available
+  // Get current user's role and tenant (verify from database)
+  const currentUser = await sql`
+    SELECT role, tenant_id
+    FROM users
+    WHERE id = ${userId}
+  `
+
+  if (currentUser.rows.length === 0) {
     redirect('/login?error=user_record_missing')
   }
 
-  // Get stats based on user role
-  let usersQuery = supabase.from('users').select('id', { count: 'exact', head: true })
-  let projectsQuery = supabase.from('projects').select('id', { count: 'exact', head: true })
-  let activityQuery = supabase.from('activity_logs').select('id', { count: 'exact', head: true })
+  const user = currentUser.rows[0]
+  const isAdmin = user.role === 'admin'
 
-  if (currentUser.role !== 'admin') {
-    usersQuery = usersQuery.eq('tenant_id', currentUser.tenant_id)
-    projectsQuery = projectsQuery.eq('tenant_id', currentUser.tenant_id)
-    activityQuery = activityQuery.eq('tenant_id', currentUser.tenant_id)
+  // Get stats based on user role
+  let usersCountQuery = sql`SELECT COUNT(*) as count FROM users`
+  let projectsCountQuery = sql`SELECT COUNT(*) as count FROM projects`
+  let activityCountQuery = sql`SELECT COUNT(*) as count FROM activity_logs`
+
+  if (!isAdmin) {
+    usersCountQuery = sql`SELECT COUNT(*) as count FROM users WHERE tenant_id = ${user.tenant_id}`
+    projectsCountQuery = sql`SELECT COUNT(*) as count FROM projects WHERE tenant_id = ${user.tenant_id}`
+    activityCountQuery = sql`SELECT COUNT(*) as count FROM activity_logs WHERE tenant_id = ${user.tenant_id}`
   }
 
-  const [usersCount, projectsCount, activityCount] = await Promise.all([
-    usersQuery,
-    projectsQuery,
-    activityQuery,
+  const [usersCountResult, projectsCountResult, activityCountResult] = await Promise.all([
+    usersCountQuery,
+    projectsCountQuery,
+    activityCountQuery,
   ])
 
-  // Get recent activity for chart (last 30 days)
-  let chartQuery = supabase
-    .from('activity_logs')
-    .select('created_at')
-    .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-    .order('created_at', { ascending: true })
+  const usersCount = parseInt(usersCountResult.rows[0].count)
+  const projectsCount = parseInt(projectsCountResult.rows[0].count)
+  const activityCount = parseInt(activityCountResult.rows[0].count)
 
-  if (currentUser.role !== 'admin') {
-    chartQuery = chartQuery.eq('tenant_id', currentUser.tenant_id)
+  // Get recent activity for chart (last 30 days)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  
+  let activityQuery = sql`
+    SELECT created_at
+    FROM activity_logs
+    WHERE created_at >= ${thirtyDaysAgo}
+    ORDER BY created_at ASC
+  `
+
+  if (!isAdmin) {
+    activityQuery = sql`
+      SELECT created_at
+      FROM activity_logs
+      WHERE tenant_id = ${user.tenant_id}
+        AND created_at >= ${thirtyDaysAgo}
+      ORDER BY created_at ASC
+    `
   }
 
-  const { data: activityData } = await chartQuery
+  const activityResult = await activityQuery
+  const activityData = activityResult.rows.map(row => ({
+    created_at: row.created_at as string
+  }))
 
   return (
     <DashboardLayout>
@@ -94,21 +88,21 @@ export default async function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Total Users"
-            value={usersCount.count || 0}
+            value={usersCount}
             icon={Users}
             description="Active users in your organization"
             trend={{ value: 12, isPositive: true }}
           />
           <StatsCard
             title="Total Projects"
-            value={projectsCount.count || 0}
+            value={projectsCount}
             icon={FolderKanban}
             description="Projects across all tenants"
             trend={{ value: 8, isPositive: true }}
           />
           <StatsCard
             title="Recent Activity"
-            value={activityCount.count || 0}
+            value={activityCount}
             icon={Activity}
             description="Activity logs this month"
             trend={{ value: 15, isPositive: true }}
@@ -129,4 +123,3 @@ export default async function DashboardPage() {
     </DashboardLayout>
   )
 }
-
