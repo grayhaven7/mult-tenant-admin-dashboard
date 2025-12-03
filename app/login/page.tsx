@@ -96,14 +96,10 @@ export default function LoginPage() {
 
         if (apiData.success) {
           toast.success('Welcome to the demo!')
-          await new Promise(resolve => setTimeout(resolve, 500))
-          try {
-            router.push('/dashboard')
-            router.refresh()
-          } catch (navError) {
-            console.error('Navigation error:', navError)
-            window.location.href = '/dashboard'
-          }
+          // Wait longer to ensure user record is committed and accessible
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          // Force a hard navigation to ensure fresh data
+          window.location.href = '/dashboard'
         } else {
           console.error('Demo error:', apiData)
           const errorMsg = apiData.details 
@@ -117,9 +113,10 @@ export default function LoginPage() {
 
       if (data.user) {
         toast.success('Welcome to the demo!')
-        await new Promise(resolve => setTimeout(resolve, 500))
-        router.push('/dashboard')
-        router.refresh()
+        // Wait to ensure user record is accessible
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Force hard navigation
+        window.location.href = '/dashboard'
       }
     } catch (error) {
       console.error('Demo login error:', error)

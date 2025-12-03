@@ -127,10 +127,47 @@ export async function POST(request: Request) {
 
       console.log('User record verified:', verifyUser)
 
-      // Wait a moment to ensure the record is fully committed
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Wait longer to ensure the record is fully committed and RLS policies are applied
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
-      return NextResponse.json({ success: true, user: signInData.user })
+      // Double-check with regular client that user can see their record (tests RLS)
+      // This is important to ensure the user can access the dashboard
+      let canReadOwnRecord = false
+      let retries = 0
+      const maxRetries = 3
+      
+      while (!canReadOwnRecord && retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const { data: regularClientCheck, error: regularError } = await supabase
+          .from('users')
+          .select('id, role, tenant_id')
+          .eq('id', signInData.user.id)
+          .single()
+
+        if (regularClientCheck) {
+          canReadOwnRecord = true
+          console.log('User record visible with regular client (RLS working):', regularClientCheck)
+        } else {
+          retries++
+          console.warn(`User record not visible with regular client (attempt ${retries}/${maxRetries}):`, regularError)
+          if (retries >= maxRetries) {
+            console.error('User record still not visible after retries - RLS policy may be missing')
+            return NextResponse.json({
+              error: 'User record created but not accessible',
+              details: 'The user record was created but cannot be read. Please run the SQL in supabase/fix-rls-policy.sql in your Supabase SQL Editor to add the required RLS policy.',
+              userRecordExists: true,
+              fixRequired: 'Run: CREATE POLICY "Users can view their own record" ON users FOR SELECT USING (id = auth.uid());'
+            }, { status: 500 })
+          }
+        }
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        user: signInData.user,
+        userRecord: verifyUser 
+      })
     }
 
     // If sign in failed, try to sign up

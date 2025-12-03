@@ -36,16 +36,10 @@ function DemoButton() {
 
       if (data.success) {
         toast.success('Welcome to the demo!')
-        // Small delay to ensure session is set
-        await new Promise(resolve => setTimeout(resolve, 500))
-        try {
-          router.push('/dashboard')
-          router.refresh()
-        } catch (navError) {
-          console.error('Navigation error:', navError)
-          // Fallback: use window.location if router fails
-          window.location.href = '/dashboard'
-        }
+        // Wait longer to ensure user record is committed and accessible
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Force a hard navigation to ensure fresh data
+        window.location.href = '/dashboard'
       } else {
         console.error('Demo error:', data)
         const errorMsg = data.details 
