@@ -38,7 +38,14 @@ export default async function DashboardPage() {
     // Check if this is an RLS error
     if (userError?.code === 'PGRST301' || userError?.message?.includes('row-level security') || userError?.hint?.includes('policy')) {
       console.error('⚠️ RLS POLICY ERROR: The "Users can view their own record" policy is missing or not working!')
-      console.error('Fix: Run supabase/CRITICAL_FIX.sql in your Supabase SQL Editor')
+      console.error('Fix: Run supabase/FINAL_FIX.sql in your Supabase SQL Editor')
+      console.error('Also verify the is_admin() function exists and has proper permissions')
+    }
+    
+    // Also check if it's a function permission error
+    if (userError?.message?.includes('permission denied') || userError?.message?.includes('function')) {
+      console.error('⚠️ FUNCTION PERMISSION ERROR: The is_admin() function may not have proper permissions!')
+      console.error('Fix: Run GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;')
     }
     
     // Don't try to create it here - let the demo route handle it
