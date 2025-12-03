@@ -35,17 +35,36 @@ export async function POST(request: Request) {
     console.log('Demo sign in attempt:', { hasUser: !!signInData?.user, error: signInError?.message })
 
     if (signInData?.user) {
+      // Wait a moment for trigger to create user record
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Check if user exists in users table
-      const { data: user } = await supabase
+      const { data: user, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', signInData.user.id)
         .single()
 
       if (!user) {
-        // User record should be created by trigger, but if not, try to create it
-        // Get first tenant or create one
-        const { data: tenants } = await supabase
+        console.log('User record not found, creating with service role key')
+        
+        // Use service role key to create user record (bypasses RLS)
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (!serviceKey) {
+          console.error('Service role key not available - cannot create user record')
+          return NextResponse.json(
+            { error: 'Service role key required', details: 'SUPABASE_SERVICE_ROLE_KEY must be set to create demo accounts' },
+            { status: 500 }
+          )
+        }
+
+        const serviceClient = createServiceClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceKey
+        )
+
+        // Get or create tenant
+        let { data: tenants } = await serviceClient
           .from('tenants')
           .select('id')
           .limit(1)
@@ -53,41 +72,79 @@ export async function POST(request: Request) {
         let tenantId = tenants?.[0]?.id
 
         if (!tenantId) {
-          // Try to create tenant (might fail due to RLS, but worth trying)
-          const { data: newTenant } = await supabase
+          const { data: newTenant, error: tenantError } = await serviceClient
             .from('tenants')
             .insert({ name: 'Acme Corporation' })
             .select('id')
             .single()
-          tenantId = newTenant?.id || null
+          
+          if (tenantError) {
+            console.error('Failed to create tenant:', tenantError)
+            return NextResponse.json(
+              { error: 'Failed to create tenant', details: tenantError.message },
+              { status: 500 }
+            )
+          }
+          tenantId = newTenant?.id
         }
 
-        // Try to update user record (trigger should have created it)
-        // If service role key is available, use it for admin operations
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-        if (serviceKey && tenantId) {
-          const serviceClient = createServiceClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            serviceKey
+        // Create user record with service role key
+        const { error: createError } = await serviceClient
+          .from('users')
+          .insert({
+            id: signInData.user.id,
+            email: signInData.user.email || 'demo@acme.com',
+            full_name: 'Demo User',
+            role: 'admin',
+            tenant_id: tenantId,
+          })
+
+        if (createError) {
+          console.error('Failed to create user record:', createError)
+          return NextResponse.json(
+            { error: 'Failed to create user record', details: createError.message },
+            { status: 500 }
           )
-          await serviceClient
-            .from('users')
-            .update({
-              full_name: 'Demo User',
-              role: 'admin',
-              tenant_id: tenantId,
-            })
-            .eq('id', signInData.user.id)
-        } else if (tenantId) {
-          // Try with regular client (user can update their own record)
-          await supabase
-            .from('users')
-            .update({
-              full_name: 'Demo User',
-              role: 'admin',
-              tenant_id: tenantId,
-            })
-            .eq('id', signInData.user.id)
+        }
+
+        console.log('User record created successfully')
+      } else {
+        // User exists, verify it has tenant_id and role
+        if (!user.tenant_id || !user.role) {
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          if (serviceKey) {
+            const serviceClient = createServiceClient(
+              process.env.NEXT_PUBLIC_SUPABASE_URL!,
+              serviceKey
+            )
+            
+            // Get or create tenant
+            let { data: tenants } = await serviceClient
+              .from('tenants')
+              .select('id')
+              .limit(1)
+
+            let tenantId = tenants?.[0]?.id
+
+            if (!tenantId) {
+              const { data: newTenant } = await serviceClient
+                .from('tenants')
+                .insert({ name: 'Acme Corporation' })
+                .select('id')
+                .single()
+              tenantId = newTenant?.id
+            }
+
+            // Update user record
+            await serviceClient
+              .from('users')
+              .update({
+                full_name: 'Demo User',
+                role: 'admin',
+                tenant_id: tenantId,
+              })
+              .eq('id', signInData.user.id)
+          }
         }
       }
 

@@ -17,14 +17,21 @@ export default async function DashboardPage() {
   }
 
   // Get current user's role and tenant
-  const { data: currentUser } = await supabase
+  let { data: currentUser, error: userError } = await supabase
     .from('users')
     .select('role, tenant_id')
     .eq('id', user.id)
     .single()
 
   if (!currentUser) {
-    redirect('/login')
+    // If user record doesn't exist, this is a problem
+    // The demo route should have created it, but if it didn't, we need to handle it
+    console.error('User record not found in dashboard:', userError)
+    console.error('User ID:', user.id, 'Email:', user.email)
+    
+    // For now, redirect to login with a helpful message
+    // The user should try the demo again, which will ensure the record is created
+    redirect('/login?error=user_record_missing')
   }
 
   // Get stats based on user role

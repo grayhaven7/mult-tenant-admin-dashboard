@@ -20,6 +20,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true)
+    
+    // Check for error query parameter
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('error')
+    if (error === 'user_record_missing') {
+      toast.error('User record not found. Please try the demo again or contact support.', { duration: 5000 })
+    }
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
