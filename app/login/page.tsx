@@ -49,50 +49,73 @@ export default function LoginPage() {
   }
 
   const handleDemoLogin = async () => {
+    // Pre-fill the form with demo credentials
+    setEmail('demo@acme.com')
+    setPassword('demo123456')
+    
+    // Small delay to show the fields being filled
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // Now automatically submit the form
     setLoading(true)
     try {
-      const response = await fetch('/api/demo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'demo@acme.com',
+        password: 'demo123456',
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: 'Server error', details: errorText }
+      if (error) {
+        // If sign in fails, try creating the account via API
+        const response = await fetch('/api/demo', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { error: 'Server error', details: errorText }
+          }
+          throw new Error(errorData.details || errorData.error || 'Failed to start demo')
         }
-        throw new Error(errorData.details || errorData.error || 'Failed to start demo')
+
+        const apiData = await response.json()
+
+        if (apiData.success) {
+          toast.success('Welcome to the demo!')
+          await new Promise(resolve => setTimeout(resolve, 500))
+          try {
+            router.push('/dashboard')
+            router.refresh()
+          } catch (navError) {
+            console.error('Navigation error:', navError)
+            window.location.href = '/dashboard'
+          }
+        } else {
+          console.error('Demo error:', apiData)
+          const errorMsg = apiData.details 
+            ? `${apiData.error}: ${apiData.details}` 
+            : apiData.error || 'Failed to start demo'
+          toast.error(errorMsg, { duration: 5000 })
+          setLoading(false)
+        }
+        return
       }
 
-      const data = await response.json()
-
-      if (data.success) {
+      if (data.user) {
         toast.success('Welcome to the demo!')
-        // Small delay to ensure session is set
         await new Promise(resolve => setTimeout(resolve, 500))
-        try {
-          router.push('/dashboard')
-          router.refresh()
-        } catch (navError) {
-          console.error('Navigation error:', navError)
-          // Fallback: use window.location if router fails
-          window.location.href = '/dashboard'
-        }
-      } else {
-        console.error('Demo error:', data)
-        const errorMsg = data.details 
-          ? `${data.error}: ${data.details}` 
-          : data.error || 'Failed to start demo'
-        toast.error(errorMsg, { duration: 5000 })
-        setLoading(false)
+        router.push('/dashboard')
+        router.refresh()
       }
     } catch (error) {
-      console.error('Demo fetch error:', error)
+      console.error('Demo login error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to start demo'
       toast.error(errorMessage, { duration: 5000 })
       setLoading(false)
