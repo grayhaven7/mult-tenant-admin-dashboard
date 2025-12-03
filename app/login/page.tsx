@@ -23,17 +23,32 @@ function LoginForm() {
     setMounted(true)
     
     // Check for error query parameters
+    // Handle both single error param and nested error param (e.g., "auth_error?error=Configuration")
     const error = searchParams.get('error')
-    if (error === 'user_record_missing') {
+    const fullUrl = window.location.href
+    
+    let actualError = error
+    
+    // Check if there's a nested error parameter in the URL
+    if (fullUrl.includes('error=Configuration')) {
+      actualError = 'Configuration'
+    } else if (fullUrl.includes('error=CredentialsSignin')) {
+      actualError = 'CredentialsSignin'
+    }
+    
+    if (actualError === 'user_record_missing') {
       toast.error('User record not found. Please try the demo again or contact support.', { duration: 5000 })
-    } else if (error === 'auth_error') {
-      toast.error('Authentication error. Please check your credentials or try the demo.', { duration: 5000 })
-    } else if (error === 'Configuration') {
-      toast.error('Server configuration error. Please check environment variables (NEXTAUTH_SECRET, NEXTAUTH_URL).', { duration: 8000 })
-    } else if (error === 'CredentialsSignin') {
+    } else if (actualError === 'Configuration') {
+      toast.error(
+        'Server configuration error. Missing NEXTAUTH_SECRET or NEXTAUTH_URL environment variables. Please check your Vercel environment variables.',
+        { duration: 10000 }
+      )
+    } else if (actualError === 'CredentialsSignin') {
       toast.error('Invalid email or password.', { duration: 5000 })
-    } else if (error) {
-      toast.error(`Authentication error: ${error}`, { duration: 5000 })
+    } else if (actualError === 'auth_error') {
+      toast.error('Authentication error. Please check your credentials or try the demo.', { duration: 5000 })
+    } else if (actualError) {
+      toast.error(`Authentication error: ${actualError}`, { duration: 5000 })
     }
   }, [searchParams])
 

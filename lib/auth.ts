@@ -3,6 +3,17 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { sql } from '@vercel/postgres'
 import bcrypt from 'bcryptjs'
 
+// Validate required environment variables
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error('⚠️  NEXTAUTH_SECRET is not set! This is required for NextAuth.js to work.')
+  console.error('   Generate one with: openssl rand -base64 32')
+}
+
+if (!process.env.NEXTAUTH_URL) {
+  console.warn('⚠️  NEXTAUTH_URL is not set. This may cause issues in production.')
+  console.warn('   Set it to your production URL: https://your-app.vercel.app')
+}
+
 const config = {
   providers: [
     CredentialsProvider({
