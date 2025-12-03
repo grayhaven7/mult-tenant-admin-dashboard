@@ -38,6 +38,29 @@ CREATE POLICY "Admins can view all users"
   ON users FOR SELECT
   USING (public.is_admin(auth.uid()));
 
+-- Step 4b: Also fix the tenant policy to avoid circular dependency
+-- Create a function to get user's tenant_id
+CREATE OR REPLACE FUNCTION public.get_user_tenant_id(user_id UUID)
+RETURNS UUID
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT tenant_id FROM public.users
+  WHERE id = user_id;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION public.get_user_tenant_id(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_tenant_id(UUID) TO anon;
+
+-- Drop and recreate the tenant policy
+DROP POLICY IF EXISTS "Users can view users in their tenant" ON users;
+
+CREATE POLICY "Users can view users in their tenant"
+  ON users FOR SELECT
+  USING (tenant_id = public.get_user_tenant_id(auth.uid()));
+
 -- Step 5: Verify all policies are correct
 SELECT 
   policyname,
@@ -52,6 +75,10 @@ SELECT
       AND cmd = 'SELECT'
       AND qual LIKE '%is_admin%'
     THEN '✓ ADMIN POLICY USES FUNCTION (NO CIRCULAR DEPENDENCY)'
+    WHEN policyname = 'Users can view users in their tenant'
+      AND cmd = 'SELECT'
+      AND qual LIKE '%get_user_tenant_id%'
+    THEN '✓ TENANT POLICY USES FUNCTION (NO CIRCULAR DEPENDENCY)'
     WHEN policyname LIKE '%view%' AND cmd = 'SELECT'
     THEN '✓ Policy exists'
     ELSE '⚠ Check this policy'
