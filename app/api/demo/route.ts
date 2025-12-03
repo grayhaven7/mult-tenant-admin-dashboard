@@ -127,6 +127,9 @@ export async function POST(request: Request) {
 
       console.log('User record verified:', verifyUser)
 
+      // Wait a moment to ensure the record is fully committed
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       return NextResponse.json({ success: true, user: signInData.user })
     }
 

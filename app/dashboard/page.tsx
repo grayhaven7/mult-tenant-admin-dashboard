@@ -71,15 +71,34 @@ export default async function DashboardPage() {
           .single()
         
         if (createdUser) {
-          // Retry getting the user
-          const { data: retryUser } = await supabase
+          console.log('User record created in dashboard fallback:', createdUser.id)
+          // Wait a moment for the record to be committed
+          await new Promise(resolve => setTimeout(resolve, 300))
+          
+          // Retry getting the user with regular client
+          const { data: retryUser, error: retryError } = await supabase
             .from('users')
             .select('role, tenant_id')
             .eq('id', user.id)
             .single()
           
           if (retryUser) {
+            console.log('Successfully retrieved user after creation:', retryUser)
             currentUser = retryUser
+          } else {
+            console.error('Failed to retrieve user after creation:', retryError)
+            // Try one more time with service client to verify it exists
+            const { data: serviceUser } = await serviceClient
+              .from('users')
+              .select('role, tenant_id')
+              .eq('id', user.id)
+              .single()
+            
+            if (serviceUser) {
+              console.log('User exists when queried with service client, RLS may be blocking')
+              // Use the service client data directly
+              currentUser = serviceUser
+            }
           }
         }
       }

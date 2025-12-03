@@ -89,6 +89,11 @@ CREATE POLICY "Admins can view all users"
     )
   );
 
+-- Users can see their own record (important for initial setup)
+CREATE POLICY "Users can view their own record"
+  ON users FOR SELECT
+  USING (id = auth.uid());
+
 -- Users can see users in their tenant
 CREATE POLICY "Users can view users in their tenant"
   ON users FOR SELECT
