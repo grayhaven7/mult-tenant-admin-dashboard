@@ -152,6 +152,38 @@ export async function POST(request: NextRequest) {
       // Wait a moment to ensure the record is fully committed
       await new Promise(resolve => setTimeout(resolve, 500))
 
+      // IMPORTANT: Verify the user can actually read their own record with RLS
+      // This is the final check before returning success
+      const { data: rlsCheck, error: rlsError } = await supabase
+        .from('users')
+        .select('id, role, tenant_id')
+        .eq('id', signInData.user.id)
+        .single()
+
+      if (!rlsCheck && rlsError) {
+        console.error('❌ RLS CHECK FAILED:', {
+          error: rlsError.message,
+          code: rlsError.code,
+          hint: rlsError.hint,
+          details: rlsError.details,
+          userId: signInData.user.id
+        })
+        
+        // Still return success, but with a warning
+        // The dashboard will handle the error more gracefully
+        return NextResponse.json({ 
+          success: true, 
+          user: signInData.user,
+          userRecord: verifyUser,
+          warning: 'User record created but RLS policy may not be working. Please run supabase/ULTIMATE_FIX.sql',
+          rlsError: rlsError.message
+        }, {
+          headers: response.headers,
+        })
+      }
+
+      console.log('✓ RLS check passed - user can read their own record')
+
       // Return success - the dashboard will handle RLS verification
       // The session cookies are already set in the response object from signInWithPassword
       return NextResponse.json({ 

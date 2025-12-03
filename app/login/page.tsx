@@ -89,7 +89,20 @@ export default function LoginPage() {
           } catch {
             errorData = { error: 'Server error', details: errorText }
           }
-          throw new Error(errorData.details || errorData.error || 'Failed to start demo')
+          
+          // Log detailed error for debugging
+          console.error('Demo API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          })
+          
+          // Provide more helpful error message
+          const errorMsg = errorData.details 
+            ? `${errorData.error || 'Server error'}: ${errorData.details}`
+            : errorData.error || 'Failed to start demo'
+          
+          throw new Error(errorMsg)
         }
 
         const apiData = await response.json()
