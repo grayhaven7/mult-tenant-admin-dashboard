@@ -88,26 +88,28 @@ export async function POST(request: Request) {
           tenantId = newTenant?.id
         }
 
-        // Create user record with service role key
+        // Create or update user record with service role key (upsert)
         const { error: createError } = await serviceClient
           .from('users')
-          .insert({
+          .upsert({
             id: signInData.user.id,
             email: signInData.user.email || 'demo@acme.com',
             full_name: 'Demo User',
             role: 'admin',
             tenant_id: tenantId,
+          }, {
+            onConflict: 'id'
           })
 
         if (createError) {
-          console.error('Failed to create user record:', createError)
+          console.error('Failed to create/update user record:', createError)
           return NextResponse.json(
             { error: 'Failed to create user record', details: createError.message },
             { status: 500 }
           )
         }
 
-        console.log('User record created successfully')
+        console.log('User record created/updated successfully')
       } else {
         // User exists, verify it has tenant_id and role
         if (!user.tenant_id || !user.role) {
@@ -213,19 +215,22 @@ export async function POST(request: Request) {
               }
             }
 
-            // Update user record with tenant and role
+            // Create or update user record with tenant and role (upsert)
             if (tenantId) {
-              const { error: updateError } = await serviceClient
+              const { error: upsertError } = await serviceClient
                 .from('users')
-                .update({
+                .upsert({
+                  id: signUpData.user.id,
+                  email: signUpData.user.email || 'demo@acme.com',
                   full_name: 'Demo User',
                   role: 'admin',
                   tenant_id: tenantId,
+                }, {
+                  onConflict: 'id'
                 })
-                .eq('id', signUpData.user.id)
               
-              if (updateError) {
-                console.error('Error updating user:', updateError)
+              if (upsertError) {
+                console.error('Error upserting user:', upsertError)
               }
             }
           } catch (serviceError) {
