@@ -1,12 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 
 // Ensure this route only accepts POST
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     // Check if Supabase is configured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -19,7 +19,29 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = await createClient()
+    // Create a response object to handle cookies properly
+    let response = NextResponse.next({
+      request,
+    })
+
+    // Create Supabase client with proper cookie handling for API routes
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value)
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
+      }
+    )
     
     // Demo account - automatically created if it doesn't exist
     // Users don't need to sign up - this happens behind the scenes
@@ -127,101 +149,17 @@ export async function POST(request: Request) {
 
       console.log('User record verified:', verifyUser)
 
-      // Wait longer to ensure the record is fully committed and RLS policies are applied
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      // Wait a moment to ensure the record is fully committed
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-      // Double-check with regular client that user can see their record (tests RLS)
-      // IMPORTANT: We need to create a fresh client that uses the cookies from the sign-in
-      // The server client should automatically pick up the session from cookies
-      let canReadOwnRecord = false
-      let retries = 0
-      const maxRetries = 5
-      
-      while (!canReadOwnRecord && retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // Create a fresh client to ensure we have the latest session
-        const freshClient = await createClient()
-        
-        // First verify the auth session
-        const { data: { user: authUser }, error: authError } = await freshClient.auth.getUser()
-        
-        if (authError || !authUser || authUser.id !== signInData.user.id) {
-          console.warn(`Auth session check failed (attempt ${retries + 1}/${maxRetries}):`, authError?.message || 'No user in session')
-          retries++
-          continue
-        }
-        
-        console.log(`Auth session valid (attempt ${retries + 1}/${maxRetries}), checking user record...`)
-        
-        // Now try to read the user record
-        const { data: regularClientCheck, error: regularError } = await freshClient
-          .from('users')
-          .select('id, role, tenant_id')
-          .eq('id', signInData.user.id)
-          .single()
-
-        if (regularClientCheck) {
-          canReadOwnRecord = true
-          console.log('✓ User record visible with regular client (RLS working):', regularClientCheck)
-        } else {
-          retries++
-          console.warn(`✗ User record not visible with regular client (attempt ${retries}/${maxRetries}):`, {
-            error: regularError?.message,
-            code: regularError?.code,
-            details: regularError?.details,
-            hint: regularError?.hint,
-            userId: signInData.user.id
-          })
-          
-          if (retries >= maxRetries) {
-            console.error('User record still not visible after retries - RLS policy may be missing or misconfigured')
-            
-            // Provide detailed diagnostics
-            return NextResponse.json({
-              error: 'User record created but not accessible',
-              details: 'The user record was created but cannot be read through RLS. This usually means the RLS policy is missing or not working correctly.',
-              diagnostics: {
-                userId: signInData.user.id,
-                userRecordExists: true,
-                authSessionValid: !!authUser,
-                rlsError: regularError?.message,
-                rlsCode: regularError?.code,
-                rlsHint: regularError?.hint
-              },
-              fixRequired: {
-                step1: 'Run this SQL in your Supabase SQL Editor:',
-                sql: `CREATE POLICY IF NOT EXISTS "Users can view their own record"
-  ON users FOR SELECT
-  USING (id = auth.uid());`,
-                step2: 'Verify the policy exists by running:',
-                verifySql: `SELECT policyname FROM pg_policies WHERE tablename = 'users' AND policyname = 'Users can view their own record';`,
-                step3: 'If the policy exists but still not working, check for conflicting policies:',
-                checkSql: `SELECT policyname, cmd, qual FROM pg_policies WHERE tablename = 'users' AND cmd = 'SELECT';`
-              }
-            }, { status: 500 })
-          }
-        }
-      }
-
-      // If we can't verify with regular client after retries, still return success
-      // The dashboard will handle the RLS check and provide better error messages
-      // This allows the frontend to at least attempt to load the dashboard
-      if (!canReadOwnRecord) {
-        console.warn('⚠️ User record created but RLS verification failed - dashboard may redirect')
-        // Still return success, but include a warning
-        return NextResponse.json({ 
-          success: true, 
-          user: signInData.user,
-          userRecord: verifyUser,
-          warning: 'User record created but RLS policy verification failed. If you see "User record not found" on the dashboard, please verify the RLS policy exists.'
-        })
-      }
-
+      // Return success - the dashboard will handle RLS verification
+      // The session cookies are already set in the response object from signInWithPassword
       return NextResponse.json({ 
         success: true, 
         user: signInData.user,
         userRecord: verifyUser 
+      }, {
+        headers: response.headers,
       })
     }
 
@@ -329,7 +267,9 @@ export async function POST(request: Request) {
         console.log('Final sign in attempt:', { hasUser: !!finalSignIn?.user, error: finalSignInError?.message })
 
         if (finalSignIn?.user) {
-          return NextResponse.json({ success: true, user: finalSignIn.user })
+          return NextResponse.json({ success: true, user: finalSignIn.user }, {
+            headers: response.headers,
+          })
         } else if (finalSignInError) {
           // If sign in fails due to email confirmation, return the user anyway
           // The frontend can handle this
@@ -338,11 +278,13 @@ export async function POST(request: Request) {
               success: true, 
               user: signUpData.user,
               needsConfirmation: true 
+            }, {
+              headers: response.headers,
             })
           }
           return NextResponse.json(
             { error: 'Failed to sign in after signup', details: finalSignInError.message },
-            { status: 500 }
+            { status: 500, headers: response.headers }
           )
         }
       }
