@@ -12,6 +12,7 @@ A modern, production-ready admin dashboard built with Next.js, Supabase, Tailwin
 - 🤖 **AI Summarization** - Claude AI-powered activity log summaries
 - 🎨 **Beautiful UI** - Modern dark theme with gradients and micro-interactions
 - 🔒 **Secure by Default** - Built on Supabase with enterprise-grade security
+- 🚀 **Try Demo Free** - No account required! Click "Try Demo" to explore the dashboard instantly
 
 ## Tech Stack
 

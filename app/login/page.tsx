@@ -51,26 +51,22 @@ export default function LoginPage() {
   const handleDemoLogin = async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-      // Try to sign in with a demo account
-      // In production, you'd have a seeded demo account
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'demo@acme.com',
-        password: 'demo123456',
+      const response = await fetch('/api/demo', {
+        method: 'POST',
       })
 
-      if (error) {
-        // If demo account doesn't exist, show message
-        toast.error('Demo account not set up. Please sign up first.')
-        setLoading(false)
-        return
-      }
+      const data = await response.json()
 
-      if (data.user) {
+      if (data.success) {
+        toast.success('Welcome to the demo!')
         router.push('/dashboard')
+        router.refresh()
+      } else {
+        toast.error(data.error || 'Failed to start demo')
+        setLoading(false)
       }
     } catch (error) {
-      toast.error('Failed to connect to authentication service')
+      toast.error('Failed to start demo. Please try again.')
       setLoading(false)
     }
   }

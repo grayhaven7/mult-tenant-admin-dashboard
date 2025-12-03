@@ -1,9 +1,47 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Shield, Users, Zap, BarChart3 } from 'lucide-react'
+import { ArrowRight, Shield, Users, Zap, BarChart3, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+
+function DemoButton() {
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  const handleTryDemo = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/demo', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Welcome to the demo!')
+        router.push('/dashboard')
+        router.refresh()
+      } else {
+        toast.error(data.error || 'Failed to start demo')
+        setLoading(false)
+      }
+    } catch (error) {
+      toast.error('Failed to start demo. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Button size="lg" className="group" onClick={handleTryDemo} disabled={loading}>
+      <Sparkles className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
+      {loading ? 'Starting Demo...' : 'Try Demo Free'}
+      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+    </Button>
+  )
+}
 
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
@@ -51,12 +89,7 @@ export default function LandingPage() {
                 mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
               }`}
             >
-              <Link href="/login">
-                <Button size="lg" className="group">
-                  View Demo
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
+              <DemoButton />
             </div>
           </div>
         </div>
@@ -129,12 +162,7 @@ export default function LandingPage() {
             <p className="text-xl text-muted-foreground mb-8">
               Explore the demo and see how easy it is to manage your multi-tenant application.
             </p>
-            <Link href="/login">
-              <Button size="lg" className="group">
-                View Demo
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </Link>
+            <DemoButton />
           </div>
         </div>
       </div>
