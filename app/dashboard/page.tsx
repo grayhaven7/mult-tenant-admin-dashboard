@@ -28,6 +28,18 @@ export default async function DashboardPage() {
     // The demo route should have created it, but if it didn't, user needs to try again
     console.error('User record not found in dashboard:', userError)
     console.error('User ID:', user.id, 'Email:', user.email)
+    console.error('RLS Error details:', {
+      message: userError?.message,
+      code: userError?.code,
+      hint: userError?.hint,
+      details: userError?.details
+    })
+    
+    // Check if this is an RLS error
+    if (userError?.code === 'PGRST301' || userError?.message?.includes('row-level security') || userError?.hint?.includes('policy')) {
+      console.error('⚠️ RLS POLICY ERROR: The "Users can view their own record" policy is missing or not working!')
+      console.error('Fix: Run supabase/CRITICAL_FIX.sql in your Supabase SQL Editor')
+    }
     
     // Don't try to create it here - let the demo route handle it
     // This prevents server errors if service role key isn't available
