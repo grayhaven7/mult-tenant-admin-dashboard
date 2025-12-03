@@ -2,7 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
-export async function POST() {
+// Ensure this route only accepts POST
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+export async function POST(request: Request) {
   try {
     // Check if Supabase is configured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
