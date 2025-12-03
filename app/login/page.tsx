@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,48 +15,68 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    if (error) {
-      toast.error(error.message)
+      if (error) {
+        toast.error(error.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      toast.error('Failed to connect to authentication service')
       setLoading(false)
-      return
-    }
-
-    if (data.user) {
-      router.push('/dashboard')
     }
   }
 
   const handleDemoLogin = async () => {
     setLoading(true)
-    // Try to sign in with a demo account
-    // In production, you'd have a seeded demo account
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: 'demo@acme.com',
-      password: 'demo123456',
-    })
+    try {
+      const supabase = createClient()
+      // Try to sign in with a demo account
+      // In production, you'd have a seeded demo account
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'demo@acme.com',
+        password: 'demo123456',
+      })
 
-    if (error) {
-      // If demo account doesn't exist, show message
-      toast.error('Demo account not set up. Please sign up first.')
+      if (error) {
+        // If demo account doesn't exist, show message
+        toast.error('Demo account not set up. Please sign up first.')
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      toast.error('Failed to connect to authentication service')
       setLoading(false)
-      return
     }
+  }
 
-    if (data.user) {
-      router.push('/dashboard')
-    }
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -135,4 +155,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

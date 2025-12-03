@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,37 +15,51 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
         },
-      },
-    })
+      })
 
-    if (error) {
-      toast.error(error.message)
+      if (error) {
+        toast.error(error.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        toast.success('Account created! Please check your email to verify your account.')
+        // In a real app, you'd create the user record in the users table here
+        // For now, we'll redirect to login
+        setTimeout(() => {
+          router.push('/login')
+        }, 2000)
+      }
+    } catch (error) {
+      toast.error('Failed to connect to authentication service')
       setLoading(false)
-      return
     }
+  }
 
-    if (data.user) {
-      toast.success('Account created! Please check your email to verify your account.')
-      // In a real app, you'd create the user record in the users table here
-      // For now, we'll redirect to login
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
-    }
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -116,4 +130,3 @@ export default function SignupPage() {
     </div>
   )
 }
-
