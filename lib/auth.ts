@@ -17,6 +17,12 @@ const config = {
         }
 
         try {
+          // Check if database is configured
+          if (!process.env.POSTGRES_URL) {
+            console.error('POSTGRES_URL is not set')
+            throw new Error('Database not configured')
+          }
+
           // Find user by email
           const email = credentials.email as string
           const result = await sql`
@@ -28,6 +34,7 @@ const config = {
           const user = result.rows[0]
 
           if (!user || !user.password_hash) {
+            console.log('User not found or missing password hash:', email)
             return null
           }
 
@@ -38,6 +45,7 @@ const config = {
           )
 
           if (!isValid) {
+            console.log('Invalid password for user:', email)
             return null
           }
 
@@ -51,6 +59,10 @@ const config = {
           }
         } catch (error) {
           console.error('Auth error:', error)
+          // Re-throw to let NextAuth handle it properly
+          if (error instanceof Error) {
+            throw error
+          }
           return null
         }
       },
@@ -75,7 +87,9 @@ const config = {
   },
   pages: {
     signIn: '/login',
+    error: '/login?error=auth_error',
   },
+  debug: process.env.NODE_ENV === 'development',
   session: {
     strategy: 'jwt',
   },
