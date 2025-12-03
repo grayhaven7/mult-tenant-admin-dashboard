@@ -82,27 +82,50 @@ export default function LoginPage() {
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
-          let errorData
+          let errorText = ''
+          let errorData: any = {}
+          
           try {
-            errorData = JSON.parse(errorText)
-          } catch {
-            errorData = { error: 'Server error', details: errorText }
+            errorText = await response.text()
+            console.error('Raw error response:', errorText)
+            
+            try {
+              errorData = JSON.parse(errorText)
+            } catch (parseError) {
+              errorData = { error: 'Server error', details: errorText }
+            }
+          } catch (fetchError) {
+            console.error('Error reading response:', fetchError)
+            errorData = { error: 'Failed to read server response', details: String(fetchError) }
           }
           
           // Log detailed error for debugging
-          console.error('Demo API error:', {
+          console.error('Demo API error details:', {
             status: response.status,
             statusText: response.statusText,
-            error: errorData
+            errorData: errorData,
+            rawText: errorText.substring(0, 500) // First 500 chars
           })
           
-          // Provide more helpful error message
-          const errorMsg = errorData.details 
-            ? `${errorData.error || 'Server error'}: ${errorData.details}`
-            : errorData.error || 'Failed to start demo'
+          // Provide more helpful error message with all available details
+          let errorMsg = errorData.error || 'Server error'
+          if (errorData.details) {
+            errorMsg += `: ${errorData.details}`
+          }
+          if (errorData.errorName) {
+            errorMsg += ` (${errorData.errorName})`
+          }
           
-          throw new Error(errorMsg)
+          // Show full error in console for debugging
+          console.error('Full error object:', errorData)
+          if (errorData.stack) {
+            console.error('Server error stack:', errorData.stack)
+          }
+          
+          // Show user-friendly message
+          toast.error(errorMsg, { duration: 10000 })
+          setLoading(false)
+          return
         }
 
         const apiData = await response.json()

@@ -19,9 +19,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create a response object to handle cookies properly
-    let response = NextResponse.next({
-      request,
+    // Create a mutable response object to handle cookies properly
+    // In API routes, we create a response that we'll modify
+    let response = new NextResponse(null, {
+      status: 200,
     })
 
     // Create Supabase client with proper cookie handling for API routes
@@ -334,13 +335,18 @@ export async function POST(request: NextRequest) {
     console.error('Demo login error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
+    const errorName = error instanceof Error ? error.name : 'UnknownError'
+    console.error('Error name:', errorName)
     console.error('Error stack:', errorStack)
     
-    // Ensure we always return valid JSON
+    // Return detailed error for debugging
     return NextResponse.json(
       { 
         error: 'Internal server error', 
-        details: errorMessage 
+        details: errorMessage,
+        errorName: errorName,
+        // Include stack trace in response for debugging (remove in production if needed)
+        ...(process.env.NODE_ENV === 'development' && errorStack ? { stack: errorStack } : {})
       },
       { 
         status: 500,
