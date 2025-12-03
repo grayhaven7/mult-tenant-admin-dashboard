@@ -210,21 +210,31 @@ export async function POST() {
     }
 
     console.error('Demo login failed - no user created or signed in')
-    return NextResponse.json({ 
-      error: 'Failed to create demo session',
-      details: 'Unable to sign in or create demo account. Please check your Supabase configuration.'
-    }, { status: 500 })
+    return NextResponse.json(
+      { 
+        error: 'Failed to create demo session',
+        details: 'Unable to sign in or create demo account. Please check your Supabase configuration and ensure email confirmation is disabled.'
+      },
+      { status: 500 }
+    )
   } catch (error) {
     console.error('Demo login error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
     console.error('Error stack:', errorStack)
+    
+    // Ensure we always return valid JSON
     return NextResponse.json(
       { 
         error: 'Internal server error', 
         details: errorMessage 
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     )
   }
 }

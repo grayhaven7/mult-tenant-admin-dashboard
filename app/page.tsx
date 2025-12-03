@@ -16,7 +16,21 @@ function DemoButton() {
     try {
       const response = await fetch('/api/demo', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: 'Server error', details: errorText }
+        }
+        throw new Error(errorData.details || errorData.error || 'Failed to start demo')
+      }
 
       const data = await response.json()
 
@@ -24,8 +38,14 @@ function DemoButton() {
         toast.success('Welcome to the demo!')
         // Small delay to ensure session is set
         await new Promise(resolve => setTimeout(resolve, 500))
-        router.push('/dashboard')
-        router.refresh()
+        try {
+          router.push('/dashboard')
+          router.refresh()
+        } catch (navError) {
+          console.error('Navigation error:', navError)
+          // Fallback: use window.location if router fails
+          window.location.href = '/dashboard'
+        }
       } else {
         console.error('Demo error:', data)
         const errorMsg = data.details 
@@ -36,7 +56,8 @@ function DemoButton() {
       }
     } catch (error) {
       console.error('Demo fetch error:', error)
-      toast.error('Failed to start demo. Please check your connection and try again.', { duration: 5000 })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start demo'
+      toast.error(errorMessage, { duration: 5000 })
       setLoading(false)
     }
   }
