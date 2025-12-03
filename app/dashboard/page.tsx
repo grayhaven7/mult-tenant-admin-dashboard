@@ -4,6 +4,7 @@ import { Users, FolderKanban, Activity, TrendingUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ActivityChart } from '@/components/activity-chart'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -24,14 +25,70 @@ export default async function DashboardPage() {
     .single()
 
   if (!currentUser) {
-    // If user record doesn't exist, this is a problem
-    // The demo route should have created it, but if it didn't, we need to handle it
+    // If user record doesn't exist, try to create it using service role
     console.error('User record not found in dashboard:', userError)
     console.error('User ID:', user.id, 'Email:', user.email)
     
-    // For now, redirect to login with a helpful message
-    // The user should try the demo again, which will ensure the record is created
-    redirect('/login?error=user_record_missing')
+    // Try to create the user record - this should have been done by the demo route
+    // But if it wasn't, we'll try here as a fallback
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (serviceKey) {
+      const serviceClient = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceKey
+      )
+      
+      // Get or create tenant
+      let { data: tenants } = await serviceClient
+        .from('tenants')
+        .select('id')
+        .limit(1)
+      
+      let tenantId = tenants?.[0]?.id
+      
+      if (!tenantId) {
+        const { data: newTenant } = await serviceClient
+          .from('tenants')
+          .insert({ name: 'Acme Corporation' })
+          .select('id')
+          .single()
+        tenantId = newTenant?.id
+      }
+      
+      if (tenantId) {
+        const { data: createdUser } = await serviceClient
+          .from('users')
+          .upsert({
+            id: user.id,
+            email: user.email || '',
+            full_name: user.user_metadata?.full_name || 'User',
+            role: 'admin',
+            tenant_id: tenantId,
+          }, {
+            onConflict: 'id'
+          })
+          .select()
+          .single()
+        
+        if (createdUser) {
+          // Retry getting the user
+          const { data: retryUser } = await supabase
+            .from('users')
+            .select('role, tenant_id')
+            .eq('id', user.id)
+            .single()
+          
+          if (retryUser) {
+            currentUser = retryUser
+          }
+        }
+      }
+    }
+    
+    // If still no user, redirect
+    if (!currentUser) {
+      redirect('/login?error=user_record_missing')
+    }
   }
 
   // Get stats based on user role
